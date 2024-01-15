@@ -65,7 +65,7 @@ $(WEBCONSOLE)/$(GO_BIN_PATH)/$(WEBCONSOLE): $(WEBCONSOLE)/server.go $(WEBCONSOLE
 	cd $(WEBCONSOLE)/frontend && \
     apt remove cmdtest && \
     apt remove yarn && \
-    curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash - && \
+    curl -fsSL https://deb.nodesource.com/setup_14.x | -E bash - && \
     curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list && \
     apt-get update && \
