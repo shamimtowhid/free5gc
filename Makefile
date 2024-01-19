@@ -63,13 +63,6 @@ $(WEBCONSOLE): $(WEBCONSOLE)/$(GO_BIN_PATH)/$(WEBCONSOLE)
 $(WEBCONSOLE)/$(GO_BIN_PATH)/$(WEBCONSOLE): $(WEBCONSOLE)/server.go $(WEBCONSOLE_GO_FILES) $(WEBCONSOLE_JS_FILES)
 	@echo "Start building $(@F)...."
 	cd $(WEBCONSOLE)/frontend && \
-    apt remove cmdtest && \
-    apt remove yarn && \
-    curl -fsSL https://deb.nodesource.com/setup_14.x | bash - && \
-    curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
-    echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list && \
-    apt-get update && \
-    apt-get install -y nodejs yarn && \
 	yarn install && \
 	yarn build && \
 	rm -rf ../public && \
