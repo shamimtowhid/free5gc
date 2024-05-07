@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NF_LIST="nrf amf smf udr pcf udm nssf ausf n3iwf upf"
+NF_LIST="nrf amf smf udr pcf udm nssf ausf n3iwf upf chf"
 
 for NF in ${NF_LIST}; do
     sudo killall -9 ${NF}
@@ -18,5 +18,6 @@ sudo rm /dev/mqueue/*
 sudo rm -f /tmp/free5gc_unix_sock
 sudo rm -f cert/*_*
 sudo rm -f test/cert/*_*
+sudo rm -f /tmp/config.json # CHF ChargingGatway FTP config
 mongo --eval "db.NfProfile.drop();db.applicationData.influenceData.subsToNotify.drop();db.applicationData.subsToNotify.drop();db.policyData.subsToNotify.drop();db.exposureData.subsToNotify.drop()" free5gc
 mongosh --eval "db.NfProfile.drop();db.applicationData.influenceData.subsToNotify.drop();db.applicationData.subsToNotify.drop();db.policyData.subsToNotify.drop();db.exposureData.subsToNotify.drop()" free5gc

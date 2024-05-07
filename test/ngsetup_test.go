@@ -19,6 +19,8 @@ import (
 	amf_service "github.com/free5gc/amf/pkg/service"
 	ausf_factory "github.com/free5gc/ausf/pkg/factory"
 	ausf_service "github.com/free5gc/ausf/pkg/service"
+	chf_factory "github.com/free5gc/chf/pkg/factory"
+	chf_service "github.com/free5gc/chf/pkg/service"
 	"github.com/free5gc/nas/security"
 	"github.com/free5gc/ngap"
 	nrf_factory "github.com/free5gc/nrf/pkg/factory"
@@ -50,6 +52,7 @@ var initFlag int = initNF
 
 func init() {
 	var testID string = ""
+	var oauth bool
 
 	for _, arg := range os.Args {
 		values := strings.Split(arg, "=")
@@ -62,12 +65,14 @@ func init() {
 
 		if arg == "noinit" {
 			initFlag = noInit
-			break
 		}
 
 		if arg == "multiAmf" {
 			initFlag = multiAMF
-			break
+		}
+
+		if arg == "oauth" {
+			oauth = true
 		}
 	}
 
@@ -78,7 +83,7 @@ func init() {
 			fmt.Printf("Make directory %s failed: %+v", "./log/", err)
 		}
 
-		if err := nrfConfig(); err != nil {
+		if err := nrfConfig(oauth); err != nil {
 			fmt.Printf("NRF Config failed: %v\n", err)
 		}
 		nrfApp, _ := nrf_service.NewApp(nrf_factory.NrfConfig)
@@ -120,6 +125,12 @@ func init() {
 		ausfApp, _ := ausf_service.NewApp(ausf_factory.AusfConfig)
 		NFs = append(NFs, ausfApp)
 
+		if err := chfConfig(); err != nil {
+			fmt.Printf("CHF Config failed: %v\n", err)
+		}
+		chfApp, _ := chf_service.NewApp(chf_factory.ChfConfig)
+		NFs = append(NFs, chfApp)
+
 		for _, app := range NFs {
 			go app.Start("")
 			time.Sleep(200 * time.Millisecond)
@@ -135,7 +146,7 @@ func init() {
 			fmt.Printf("Make directory %s failed: %+v", "./log/", err)
 		}
 
-		if err := nrfConfig(); err != nil {
+		if err := nrfConfig(oauth); err != nil {
 			fmt.Printf("NRF Config failed: %v\n", err)
 		}
 		nrfApp, _ := nrf_service.NewApp(nrf_factory.NrfConfig)
@@ -182,6 +193,12 @@ func init() {
 		}
 		ausfApp, _ := ausf_service.NewApp(ausf_factory.AusfConfig)
 		NFs = append(NFs, ausfApp)
+
+		if err := chfConfig(); err != nil {
+			fmt.Printf("CHF Config failed: %v\n", err)
+		}
+		chfApp, _ := chf_service.NewApp(chf_factory.ChfConfig)
+		NFs = append(NFs, chfApp)
 
 		for _, app := range NFs {
 			go app.Start("")
@@ -243,7 +260,10 @@ func TestCN(t *testing.T) {
 	// insert UE data to MongoDB
 
 	servingPlmnId := "20893"
-	test.InsertAuthSubscriptionToMongoDB(ue.Supi, ue.AuthenticationSubs)
+	// test.InsertAuthSubscriptionToMongoDB(ue.Supi, ue.AuthenticationSubs)
+
+	test.InsertUeToMongoDB(t, ue, servingPlmnId)
+
 	getData := test.GetAuthSubscriptionFromMongoDB(ue.Supi)
 	assert.NotNil(t, getData)
 	{
@@ -277,7 +297,7 @@ func TestCN(t *testing.T) {
 		assert.NotNil(t, getData)
 	}
 
-	defer beforeClose(ue)
+	defer beforeClose(t, ue, servingPlmnId)
 
 	// subscribe os signal
 	c := make(chan os.Signal, 1)
@@ -285,14 +305,16 @@ func TestCN(t *testing.T) {
 	<-c
 }
 
-func beforeClose(ue *test.RanUeContext) {
+func beforeClose(t *testing.T, ue *test.RanUeContext, servingPlmnId string) {
 	// delete test data
-	test.DelAuthSubscriptionToMongoDB(ue.Supi)
-	test.DelAccessAndMobilitySubscriptionDataFromMongoDB(ue.Supi, "20893")
-	test.DelSmfSelectionSubscriptionDataFromMongoDB(ue.Supi, "20893")
+	// test.DelAuthSubscriptionToMongoDB(ue.Supi)
+	// test.DelAccessAndMobilitySubscriptionDataFromMongoDB(ue.Supi, "20893")
+	// test.DelSmfSelectionSubscriptionDataFromMongoDB(ue.Supi, "20893")
+
+	test.DelUeFromMongoDB(t, ue, servingPlmnId)
 }
 
-func nrfConfig() error {
+func nrfConfig(oauth bool) error {
 	nrf_factory.NrfConfig = &nrf_factory.Config{
 		Info: &nrf_factory.Info{
 			Version:     "1.0.2",
@@ -314,7 +336,7 @@ func nrfConfig() error {
 					Pem: "../cert/root.pem",
 					Key: "../cert/root.key",
 				},
-				OAuth: false,
+				OAuth: oauth,
 			},
 			DefaultPlmnId: models.PlmnId{
 				Mcc: "208",
@@ -1417,6 +1439,79 @@ func ausfConfig() error {
 	}
 
 	if _, err := ausf_factory.AusfConfig.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func chfConfig() error {
+	chf_factory.ChfConfig = &chf_factory.Config{
+		Info: &chf_factory.Info{
+			Version:     "1.0.3",
+			Description: "CHF initial test configuration",
+		},
+		Configuration: &chf_factory.Configuration{
+			ChfName: "CHF",
+			Sbi: &chf_factory.Sbi{
+				Scheme:       "http",
+				RegisterIPv4: "127.0.0.113",
+				BindingIPv4:  "127.0.0.113",
+				Port:         8000,
+				Tls: &chf_factory.Tls{
+					Pem: "../cert/chf.pem",
+					Key: "../cert/chf.key",
+				},
+			},
+			NrfUri:     "http://127.0.0.10:8000",
+			NrfCertPem: "../cert/nrf.pem",
+			ServiceNameList: []string{
+				"nchf-convergedcharging",
+			},
+			Mongodb: &chf_factory.Mongodb{
+				Name: "free5gc",
+				Url:  "mongodb://localhost:27017",
+			},
+			QuotaValidityTime:   10000,
+			VolumeLimit:         50000,
+			VolumeLimitPDU:      10000,
+			VolumeThresholdRate: 0.8,
+			Cgf: &chf_factory.Cgf{
+				HostIPv4:   "127.0.0.1",
+				Port:       2122,
+				ListenPort: 2121,
+				Tls: &chf_factory.Tls{
+					Pem: "../cert/chf.pem",
+					Key: "../cert/chf.key",
+				},
+			},
+			AbmfDiameter: &chf_factory.Diameter{
+				Protocol: "tcp",
+				HostIPv4: "127.0.0.113",
+				Port:     3868,
+				Tls: &chf_factory.Tls{
+					Pem: "../cert/chf.pem",
+					Key: "../cert/chf.key",
+				},
+			},
+			RfDiameter: &chf_factory.Diameter{
+				Protocol: "tcp",
+				HostIPv4: "127.0.0.113",
+				Port:     3869,
+				Tls: &chf_factory.Tls{
+					Pem: "../cert/chf.pem",
+					Key: "../cert/chf.key",
+				},
+			},
+		},
+		Logger: &chf_factory.Logger{
+			Enable:       true,
+			Level:        "info",
+			ReportCaller: false,
+		},
+	}
+
+	if _, err := chf_factory.ChfConfig.Validate(); err != nil {
 		return err
 	}
 
